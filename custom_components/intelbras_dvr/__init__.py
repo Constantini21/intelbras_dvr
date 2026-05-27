@@ -24,6 +24,8 @@ _LOGGER = logging.getLogger(__name__)
 
 SERVICE_APPLY = "apply_credentials"
 
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
 APPLY_SCHEMA = vol.Schema(
     {
         vol.Optional("entry_id"): cv.string,
