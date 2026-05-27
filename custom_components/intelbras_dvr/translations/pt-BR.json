@@ -1,0 +1,44 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Intelbras DVR",
+        "description": "Informe os dados do DVR. As credenciais são validadas via snapshot.",
+        "data": {
+          "host": "IP",
+          "username": "Usuário",
+          "password": "Senha",
+          "channels": "Quantidade de canais",
+          "rtsp_port": "Porta RTSP",
+          "track_by_mac": "Rastrear IP pelo MAC",
+          "scan_interval": "Intervalo de verificação (s)"
+        }
+      }
+    },
+    "error": {
+      "auth_failed": "Falha de login (verifique IP/usuário/senha e se o DVR não está bloqueado)."
+    },
+    "abort": {
+      "already_configured": "Este DVR já está configurado."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opções do DVR",
+        "data": {
+          "channels": "Quantidade de canais",
+          "rtsp_port": "Porta RTSP",
+          "track_by_mac": "Rastrear IP pelo MAC",
+          "scan_interval": "Intervalo de verificação (s)"
+        }
+      }
+    }
+  },
+  "services": {
+    "apply_credentials": {
+      "name": "Aplicar credenciais",
+      "description": "Atualiza host/usuário/senha do DVR e recarrega."
+    }
+  }
+}

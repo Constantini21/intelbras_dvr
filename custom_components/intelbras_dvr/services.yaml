@@ -1,0 +1,31 @@
+apply_credentials:
+  name: Aplicar credenciais
+  description: >-
+    Valida IP/usuário/senha contra o DVR e, se OK, atualiza a config entry
+    (host/user/pass), aprende o MAC e recarrega a integração.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: ID da config entry (opcional se só houver uma instalação).
+      required: false
+      selector:
+        text:
+    host:
+      name: Host (IP)
+      description: IP atual do DVR.
+      required: true
+      example: 172.16.0.12
+      selector:
+        text:
+    username:
+      name: Usuário
+      required: true
+      example: admin
+      selector:
+        text:
+    password:
+      name: Senha
+      required: true
+      selector:
+        text:
+          type: password
