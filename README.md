@@ -1,75 +1,86 @@
 # Intelbras DVR
 
-Integração customizada do Home Assistant para DVRs **Intelbras / Dahua** com:
+[🇧🇷 Português](README.pt-BR.md)
 
-- 🎥 Câmeras via snapshot HTTP (digest) + stream RTSP — uma entidade por canal.
-- 🔧 Reautenticação via UI: serviço `intelbras_dvr.apply_credentials` para trocar
-  IP/usuário/senha sem recriar a integração.
-- 🌐 **Auto-rastreio por MAC**: se o DHCP der outro IP ao DVR (queda de energia,
-  reboot do roteador), a integração detecta o MAC original e atualiza o host
-  automaticamente — sem ação manual.
-- 📋 Sensor `last_apply_result` com o resultado da última (re)autenticação.
+Custom Home Assistant integration for **Intelbras / Dahua** DVRs, featuring:
 
-Inspirado no padrão `generic_camera` mas dedicado a DVRs Intelbras/Dahua,
-incluindo o problema clássico de bloqueio de login após várias tentativas
-erradas (a integração desabilita auto-reload em caso de 401 repetido).
+- 🎥 Cameras via HTTP snapshot (digest auth) + RTSP stream — one entity per channel.
+- 🔧 In-UI reauthentication: `intelbras_dvr.apply_credentials` service to update
+  host / username / password without recreating the integration.
+- 🌐 **MAC-based IP tracking**: if DHCP gives the DVR a new IP (after a power
+  outage or router reboot), the integration detects the original MAC and
+  updates the host automatically — no manual intervention.
+- 📋 `last_apply_result` sensor reporting the outcome of the latest
+  (re)authentication or auto-tracking event.
 
-## Instalação
+Inspired by the `generic_camera` pattern but tailored for Intelbras/Dahua DVRs,
+including the classic login-lockout problem after several failed login
+attempts (the integration applies a local back-off on repeated 401s).
 
-### Via HACS (recomendado)
+## Installation
+
+### Via HACS (recommended)
 1. HACS → menu (⋮) → **Custom repositories**.
-2. URL: `https://github.com/Constantini21/intelbras_dvr` (categoria *Integration*).
-3. Instalar **Intelbras DVR** e reiniciar o HA.
+2. URL: `https://github.com/Constantini21/intelbras_dvr` (category *Integration*).
+3. Install **Intelbras DVR** and restart Home Assistant.
 4. Settings → Devices & Services → **Add Integration** → "Intelbras DVR".
 
 ### Manual
-Copie `custom_components/intelbras_dvr/` para
-`<config>/custom_components/intelbras_dvr/` e reinicie o HA.
+Copy `custom_components/intelbras_dvr/` into
+`<config>/custom_components/intelbras_dvr/` and restart Home Assistant.
 
-## Configuração (config flow)
+## Configuration (config flow)
 
-| Campo | Default | Descrição |
-|-------|---------|-----------|
-| `host` | — | IP do DVR (ex: `172.16.0.12`) |
-| `username` | `admin` | Usuário do DVR |
-| `password` | — | Senha do DVR |
-| `channels` | `4` | Quantidade de canais a criar |
-| `track_by_mac` | `true` | Habilitar rastreio automático por MAC |
+| Field | Default | Description |
+|-------|---------|-------------|
+| `host` | — | DVR IP address (e.g. `172.16.0.12`) |
+| `username` | `admin` | DVR username |
+| `password` | — | DVR password |
+| `channels` | `4` | Number of channels to create |
+| `rtsp_port` | `554` | RTSP port |
+| `track_by_mac` | `true` | Enable automatic IP tracking by MAC |
+| `scan_interval` | `300` | Tracking interval in seconds |
 
-Ao salvar, a integração testa `GET http://<host>/cgi-bin/snapshot.cgi?channel=1`
-com digest auth. Se 200, cria N câmeras.
+On submit, the integration calls
+`GET http://<host>/cgi-bin/snapshot.cgi?channel=1` with digest auth. On HTTP
+200 it creates `N` camera entities.
 
-## Serviço `intelbras_dvr.apply_credentials`
+## Service `intelbras_dvr.apply_credentials`
 
 ```yaml
 service: intelbras_dvr.apply_credentials
 data:
-  entry_id: <config_entry_id>   # opcional se só houver 1 instalação
+  entry_id: <config_entry_id>   # optional if there is only one installation
   host: 172.16.0.12
   username: admin
-  password: nova-senha
+  password: new-password
 ```
 
-Valida, atualiza a entry, faz reload sem reiniciar o HA.
+Validates the new credentials against the DVR, updates the config entry, and
+reloads the integration in-place (no Home Assistant restart needed).
 
-## Auto-rastreio por MAC
+## MAC-based IP auto-tracking
 
-Quando ativado:
-- A cada `scan_interval` (default 300s) a integração lê a tabela ARP local
-  (`ip neigh`) e localiza o MAC associado ao IP atual.
-- Em ciclos seguintes, se o IP do MAC mudar, a entry é atualizada e
-  recarregada automaticamente.
-- Funciona **apenas** se o HA roda em `network_mode: host` (ou bare metal) —
-  containers em `bridge` não enxergam a ARP do host.
+When enabled:
+- Every `scan_interval` (default 300 s) the integration reads the local ARP
+  table (`ip neigh`) and finds the MAC associated with the current IP.
+- On later cycles, if the MAC's IP changes, the config entry is updated and
+  the integration is reloaded automatically.
+- Works **only** when Home Assistant runs in `network_mode: host` (or on bare
+  metal). Bridged containers can't see the host's ARP table.
 
-## Sensor `last_apply_result`
+## `last_apply_result` sensor
 
-Mostra o resultado da última chamada do serviço ou do auto-rastreio
-(`OK: ...` ou `FAIL: ...`).
+Surfaces the latest service call or auto-tracking outcome
+(`OK: ...`, `FAIL: ...`, or `AUTO: ...`).
 
-## Limitações conhecidas
+## Known limitations
 
-- DVRs Intelbras/Dahua bloqueiam o IP cliente por ~30min após 3-5 tentativas
-  de login erradas. A integração detecta 401 e pausa retentativas de stream
-  por 5min para não agravar o ban.
-- Só descobre MAC se o HA estiver na mesma L2 do DVR.
+- Intelbras/Dahua DVRs lock out the client IP for ~30 min after 3–5 failed
+  login attempts. The integration detects HTTP 401 and pauses stream retries
+  for 5 min to avoid making the ban worse.
+- MAC discovery only works when Home Assistant is on the same L2 as the DVR.
+
+## License
+
+MIT — see [LICENSE](LICENSE) if present, otherwise use freely with attribution.
