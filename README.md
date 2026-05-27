@@ -1,6 +1,14 @@
 # Intelbras DVR
 
+<p align="center">
+  <img src="custom_components/intelbras_dvr/brand/logo.png" alt="Intelbras DVR" width="320"/>
+</p>
+
 [🇧🇷 Português](README.pt-BR.md)
+
+> ⚠️ **Disclaimer**: Intelbras® and Dahua® are registered trademarks of their
+> respective owners. This is an unofficial community integration with no
+> affiliation, endorsement or support from Intelbras S.A. or Dahua Technology.
 
 Custom Home Assistant integration for **Intelbras / Dahua** DVRs, featuring:
 
