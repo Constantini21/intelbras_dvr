@@ -5,26 +5,27 @@ import logging
 
 import voluptuous as vol
 
+from homeassistant.components import persistent_notification
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 import homeassistant.helpers.config_validation as cv
 
+from .apply_helper import apply_credentials
 from .const import (
     DATA_COORDINATOR,
-    DATA_MAC,
     DOMAIN,
     PLATFORMS,
 )
 from .coordinator import IntelbrasCoordinator
-from .dvr import IntelbrasClient, discover_mac
+from .dvr import IntelbrasClient
 
 _LOGGER = logging.getLogger(__name__)
 
 SERVICE_APPLY = "apply_credentials"
 
-CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+CONFIG_SCHEMA = vol.Schema({DOMAIN: vol.Schema({})}, extra=vol.ALLOW_EXTRA)
 
 APPLY_SCHEMA = vol.Schema(
     {
@@ -42,16 +43,15 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
     async def _apply(call: ServiceCall) -> None:
         entries = list(hass.config_entries.async_entries(DOMAIN))
-        if not entries:
-            raise HomeAssistantError("Nenhuma instalação Intelbras DVR encontrada.")
         target_id = call.data.get("entry_id")
+        entry: ConfigEntry | None = None
         if target_id:
             entry = next((e for e in entries if e.entry_id == target_id), None)
             if entry is None:
                 raise HomeAssistantError(f"entry_id {target_id} não encontrada.")
         elif len(entries) == 1:
             entry = entries[0]
-        else:
+        elif len(entries) > 1:
             raise HomeAssistantError(
                 "Múltiplas instalações: especifique entry_id na chamada."
             )
@@ -60,28 +60,29 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         user = call.data[CONF_USERNAME]
         pwd = call.data[CONF_PASSWORD]
 
-        client = IntelbrasClient(host, user, pwd)
-        result = await client.probe()
-        coord: IntelbrasCoordinator = hass.data[DOMAIN][entry.entry_id][DATA_COORDINATOR]
-        if not result.ok:
-            coord.set_last_result(f"FAIL: {result.error} (HTTP={result.http_code})")
-            raise HomeAssistantError(f"Login falhou: {result.error}")
+        outcome = await apply_credentials(hass, host, user, pwd, entry)
+        if not outcome.ok:
+            persistent_notification.async_create(
+                hass,
+                outcome.message,
+                title="DVR Intelbras",
+                notification_id="intelbras_dvr_apply",
+            )
+            raise HomeAssistantError(f"Login falhou: {outcome.message}")
 
-        mac = await hass.async_add_executor_job(discover_mac, host)
-        new_data = {
-            **entry.data,
-            CONF_HOST: host,
-            CONF_USERNAME: user,
-            CONF_PASSWORD: pwd,
-        }
-        if mac:
-            new_data[DATA_MAC] = mac
-        hass.config_entries.async_update_entry(entry, data=new_data)
-        coord.set_last_result(
-            f"OK: {host} validado"
-            + (f" (MAC {mac})" if mac else " (MAC desconhecido)")
+        persistent_notification.async_create(
+            hass,
+            outcome.message
+            + (" — reiniciando HA..." if outcome.needs_restart else ""),
+            title="DVR Intelbras",
+            notification_id="intelbras_dvr_apply",
         )
-        await hass.config_entries.async_reload(entry.entry_id)
+
+        if entry is not None:
+            await hass.config_entries.async_reload(entry.entry_id)
+
+        if outcome.needs_restart:
+            await hass.services.async_call("homeassistant", "restart")
 
     hass.services.async_register(DOMAIN, SERVICE_APPLY, _apply, schema=APPLY_SCHEMA)
     return True
