@@ -83,7 +83,7 @@ class IntelbrasMediaSource(MediaSource):
         rtsp_port = self._opt(entry, CONF_RTSP_PORT, DEFAULT_RTSP_PORT)
         url = client.playback_rtsp_url(int(channel), start, end, rtsp_port)
         stream = create_stream(self.hass, url, {}, DynamicStreamSettings())
-        stream.add_provider("hls", timeout=3600)
+        stream.add_provider("hls", timeout=300)
         stream_url = stream.endpoint_url("hls").replace("master_", "")
         return PlayMedia(stream_url, HLS_MIME)
 
