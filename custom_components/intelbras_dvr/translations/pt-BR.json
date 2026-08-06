@@ -11,7 +11,9 @@
           "channels": "Quantidade de canais",
           "rtsp_port": "Porta RTSP",
           "track_by_mac": "Rastrear IP pelo MAC",
-          "scan_interval": "Intervalo de verificação (s)"
+          "scan_interval": "Intervalo de verificação (s)",
+          "rtsp_subtype": "Subtipo RTSP (0=principal, 1=substream)",
+          "http_port": "Porta HTTP"
         }
       }
     },
@@ -30,7 +32,9 @@
           "channels": "Quantidade de canais",
           "rtsp_port": "Porta RTSP",
           "track_by_mac": "Rastrear IP pelo MAC",
-          "scan_interval": "Intervalo de verificação (s)"
+          "scan_interval": "Intervalo de verificação (s)",
+          "rtsp_subtype": "Subtipo RTSP (0=principal, 1=substream)",
+          "http_port": "Porta HTTP"
         }
       }
     }

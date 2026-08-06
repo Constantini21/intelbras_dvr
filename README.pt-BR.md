@@ -19,10 +19,33 @@ Integração customizada do Home Assistant para DVRs **Intelbras / Dahua** com:
   reboot do roteador), a integração detecta o MAC original e atualiza o host
   automaticamente — sem ação manual.
 - 📋 Sensor `last_apply_result` com o resultado da última (re)autenticação.
+- 🕒 **Gravações no Media Browser** (v0.2.0): navegue por canal → dia →
+  segmento e assista às gravações do DVR direto no navegador/app, via
+  playback RTSP convertido em HLS pelo Home Assistant.
 
 Inspirado no padrão `generic_camera` mas dedicado a DVRs Intelbras/Dahua,
 incluindo o problema clássico de bloqueio de login após várias tentativas
 erradas (a integração desabilita auto-reload em caso de 401 repetido).
+
+## Gravações (Media Browser)
+
+A partir da v0.2.0, as gravações do DVR aparecem no painel **Mídia** do Home
+Assistant: **Mídia → Intelbras DVR → canal → dia → segmento**. A listagem usa a
+API `mediaFileFind.cgi` do DVR e a reprodução usa a URL RTSP de playback
+(`/cam/playback`) convertida em HLS pelo componente `stream` — nada é baixado
+em `.dav`.
+
+Notas:
+
+- A janela de navegação cobre os últimos 7 dias (segmentos de gravação
+  contínua aparecem tipicamente em blocos de 30 min).
+- DVRs de entrada costumam limitar sessões simultâneas de playback (1–2). Se o
+  vídeo não abrir, feche outros players e tente de novo.
+- Gravações H.265/HEVC tocam bem em Safari/Chrome/Edge; Firefox tem suporte
+  fraco a HEVC (mesma limitação do live view).
+- Para um card na dashboard, o
+  [advanced-camera-card](https://github.com/dermotduffy/advanced-camera-card)
+  aceita `folders:` apontando para `media-source://intelbras_dvr`.
 
 ## Instalação
 

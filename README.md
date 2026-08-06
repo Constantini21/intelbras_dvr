@@ -20,10 +20,32 @@ Custom Home Assistant integration for **Intelbras / Dahua** DVRs, featuring:
   updates the host automatically — no manual intervention.
 - 📋 `last_apply_result` sensor reporting the outcome of the latest
   (re)authentication or auto-tracking event.
+- 🕒 **Recordings in the Media Browser** (v0.2.0): browse channel → day →
+  segment and watch DVR footage in the browser/app via RTSP playback
+  converted to HLS by Home Assistant.
 
 Inspired by the `generic_camera` pattern but tailored for Intelbras/Dahua DVRs,
 including the classic login-lockout problem after several failed login
 attempts (the integration applies a local back-off on repeated 401s).
+
+## Recordings (Media Browser)
+
+Since v0.2.0 the DVR recordings show up in Home Assistant's **Media** panel:
+**Media → Intelbras DVR → channel → day → segment**. Listing uses the DVR's
+`mediaFileFind.cgi` API; playback uses the RTSP playback URL (`/cam/playback`)
+converted to HLS by the `stream` component — no `.dav` downloads involved.
+
+Notes:
+
+- The browse window covers the last 7 days (continuous recording usually shows
+  up as 30-minute blocks).
+- Entry-level DVRs limit concurrent playback sessions (1–2). If a video does
+  not start, close other players and retry.
+- H.265/HEVC recordings play fine on Safari/Chrome/Edge; Firefox has weak HEVC
+  support (same limitation as live view).
+- For a dashboard card, the
+  [advanced-camera-card](https://github.com/dermotduffy/advanced-camera-card)
+  supports `folders:` pointing at `media-source://intelbras_dvr`.
 
 ## Installation
 
