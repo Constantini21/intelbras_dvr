@@ -14,7 +14,9 @@ import homeassistant.helpers.config_validation as cv
 
 from .apply_helper import apply_credentials
 from .const import (
+    CONF_HTTP_PORT,
     DATA_COORDINATOR,
+    DEFAULT_HTTP_PORT,
     DOMAIN,
     PLATFORMS,
 )
@@ -94,6 +96,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry.data[CONF_HOST],
         entry.data[CONF_USERNAME],
         entry.data[CONF_PASSWORD],
+        http_port=entry.options.get(
+            CONF_HTTP_PORT, entry.data.get(CONF_HTTP_PORT, DEFAULT_HTTP_PORT)
+        ),
     )
     coordinator = IntelbrasCoordinator(hass, entry, client)
     await coordinator.async_config_entry_first_refresh()

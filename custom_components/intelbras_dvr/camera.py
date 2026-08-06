@@ -12,9 +12,11 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import (
     CONF_CHANNELS,
     CONF_RTSP_PORT,
+    CONF_RTSP_SUBTYPE,
     DATA_COORDINATOR,
     DEFAULT_CHANNELS,
     DEFAULT_RTSP_PORT,
+    DEFAULT_RTSP_SUBTYPE,
     DOMAIN,
     RTSP_PATH,
 )
@@ -86,7 +88,11 @@ class IntelbrasCamera(Camera):
         port = self._entry.options.get(
             CONF_RTSP_PORT, self._entry.data.get(CONF_RTSP_PORT, DEFAULT_RTSP_PORT)
         )
+        subtype = self._entry.options.get(
+            CONF_RTSP_SUBTYPE,
+            self._entry.data.get(CONF_RTSP_SUBTYPE, DEFAULT_RTSP_SUBTYPE),
+        )
         return (
             f"rtsp://{user}:{pwd}@{host}:{port}"
-            + RTSP_PATH.format(channel=self._channel)
+            + RTSP_PATH.format(channel=self._channel, subtype=subtype)
         )

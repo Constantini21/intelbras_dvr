@@ -9,14 +9,23 @@ from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.data_entry_flow import FlowResult
 import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers.selector import (
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
+)
 
 from .const import (
     CONF_CHANNELS,
+    CONF_HTTP_PORT,
     CONF_RTSP_PORT,
+    CONF_RTSP_SUBTYPE,
     CONF_SCAN_INTERVAL,
     CONF_TRACK_BY_MAC,
     DEFAULT_CHANNELS,
+    DEFAULT_HTTP_PORT,
     DEFAULT_RTSP_PORT,
+    DEFAULT_RTSP_SUBTYPE,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_USERNAME,
     DOMAIN,
@@ -30,13 +39,21 @@ def _user_schema(defaults: dict | None = None) -> vol.Schema:
         {
             vol.Required(CONF_HOST, default=d.get(CONF_HOST, "")): cv.string,
             vol.Required(CONF_USERNAME, default=d.get(CONF_USERNAME, DEFAULT_USERNAME)): cv.string,
-            vol.Required(CONF_PASSWORD, default=d.get(CONF_PASSWORD, "")): cv.string,
+            vol.Required(CONF_PASSWORD, default=d.get(CONF_PASSWORD, "")): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.PASSWORD)
+            ),
             vol.Optional(CONF_CHANNELS, default=d.get(CONF_CHANNELS, DEFAULT_CHANNELS)): vol.All(
                 vol.Coerce(int), vol.Range(min=1, max=32)
             ),
             vol.Optional(CONF_RTSP_PORT, default=d.get(CONF_RTSP_PORT, DEFAULT_RTSP_PORT)): vol.All(
                 vol.Coerce(int), vol.Range(min=1, max=65535)
             ),
+            vol.Optional(
+                CONF_RTSP_SUBTYPE, default=d.get(CONF_RTSP_SUBTYPE, DEFAULT_RTSP_SUBTYPE)
+            ): vol.All(vol.Coerce(int), vol.Range(min=0, max=1)),
+            vol.Optional(
+                CONF_HTTP_PORT, default=d.get(CONF_HTTP_PORT, DEFAULT_HTTP_PORT)
+            ): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
             vol.Optional(CONF_TRACK_BY_MAC, default=d.get(CONF_TRACK_BY_MAC, True)): cv.boolean,
             vol.Optional(
                 CONF_SCAN_INTERVAL, default=d.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
@@ -57,6 +74,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 user_input[CONF_HOST],
                 user_input[CONF_USERNAME],
                 user_input[CONF_PASSWORD],
+                http_port=user_input.get(CONF_HTTP_PORT, DEFAULT_HTTP_PORT),
             )
             result = await client.probe()
             if not result.ok:
@@ -103,6 +121,13 @@ class OptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(CONF_RTSP_PORT, default=merged.get(CONF_RTSP_PORT, DEFAULT_RTSP_PORT)): vol.All(
                     vol.Coerce(int), vol.Range(min=1, max=65535)
                 ),
+                vol.Optional(
+                    CONF_RTSP_SUBTYPE,
+                    default=merged.get(CONF_RTSP_SUBTYPE, DEFAULT_RTSP_SUBTYPE),
+                ): vol.All(vol.Coerce(int), vol.Range(min=0, max=1)),
+                vol.Optional(
+                    CONF_HTTP_PORT, default=merged.get(CONF_HTTP_PORT, DEFAULT_HTTP_PORT)
+                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
                 vol.Optional(
                     CONF_TRACK_BY_MAC, default=merged.get(CONF_TRACK_BY_MAC, True)
                 ): cv.boolean,
