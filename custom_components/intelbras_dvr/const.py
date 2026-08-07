@@ -26,6 +26,7 @@ RTSP_PLAYBACK_PATH = "/cam/playback?channel={channel}&starttime={start}&endtime=
 
 # Media browser de gravações
 MEDIA_BROWSE_DAYS = 7  # dias listados por canal
+MEDIA_SLICE_MINUTES = 5  # granularidade dos trechos dentro de uma hora
 HLS_MIME = "application/x-mpegURL"
 
 # Estado armazenado em hass.data[DOMAIN][entry_id]

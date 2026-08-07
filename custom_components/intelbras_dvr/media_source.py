@@ -26,6 +26,7 @@ from .const import (
     DOMAIN,
     HLS_MIME,
     MEDIA_BROWSE_DAYS,
+    MEDIA_SLICE_MINUTES,
 )
 from .dvr import IntelbrasClient, RecordingsError
 
@@ -41,7 +42,7 @@ async def async_get_media_source(hass: HomeAssistant) -> "IntelbrasMediaSource":
 
 
 class IntelbrasMediaSource(MediaSource):
-    """Gravações do DVR: canais → dias → segmentos."""
+    """Gravações do DVR: canais → dias → horas → trechos."""
 
     name = "Intelbras DVR"
 
@@ -99,7 +100,9 @@ class IntelbrasMediaSource(MediaSource):
         if kind == "DAY":
             return self._browse_days(identifier)
         if kind == "FILES":
-            return await self._browse_files(identifier)
+            return await self._browse_hours(identifier)
+        if kind == "HOUR":
+            return await self._browse_slices(identifier)
         raise Unresolvable(f"Caminho desconhecido: {identifier}")
 
     def _browse_root(self) -> BrowseMediaSource:
@@ -187,47 +190,93 @@ class IntelbrasMediaSource(MediaSource):
             children=children,
         )
 
-    async def _browse_files(self, identifier: str) -> BrowseMediaSource:
-        _, entry_id, channel, day_s = identifier.split("|")
+    async def _day_recordings(self, entry_id: str, channel: str, day_s: str):
         _, client = self._client(entry_id)
         day = datetime.strptime(day_s, _DAY_FMT).date()
         start = datetime.combine(day, time.min)
         end = datetime.combine(day, time.max.replace(microsecond=0))
         try:
             recordings = await client.find_recordings(int(channel), start, end)
-        except RecordingsError as ex:
-            _LOGGER.warning("Listagem de gravações falhou: %s", ex)
-            raise Unresolvable("DVR indisponível") from ex
         except Exception as ex:  # noqa: BLE001
             _LOGGER.warning("Listagem de gravações falhou: %s", ex)
             raise Unresolvable("DVR indisponível") from ex
-        children = []
-        for rec in recordings:
-            minutes = max(1, round((rec.end - rec.start).total_seconds() / 60))
-            children.append(
-                BrowseMediaSource(
-                    domain=DOMAIN,
-                    identifier=(
-                        f"PLAY|{entry_id}|{channel}"
-                        f"|{rec.start.strftime(_COMPACT_FMT)}"
-                        f"|{rec.end.strftime(_COMPACT_FMT)}"
-                    ),
-                    media_class=MediaClass.VIDEO,
-                    media_content_type=MediaType.VIDEO,
-                    title=(
-                        f"{rec.start.strftime('%H:%M:%S')}"
-                        f" – {rec.end.strftime('%H:%M:%S')} ({minutes} min)"
-                    ),
-                    can_play=True,
-                    can_expand=False,
+        return day, recordings
+
+    async def _browse_hours(self, identifier: str) -> BrowseMediaSource:
+        """Um dia: pastas por hora, só das horas com gravação."""
+        _, entry_id, channel, day_s = identifier.split("|")
+        day, recordings = await self._day_recordings(entry_id, channel, day_s)
+        hours = sorted(
+            {
+                hour
+                for rec in recordings
+                # última hora coberta: a do instante final menos 1s
+                # (gravação terminando exatamente em HH:00:00 não cobre HH)
+                for hour in range(
+                    rec.start.hour, (rec.end - timedelta(seconds=1)).hour + 1
                 )
+            }
+        )
+        children = [
+            BrowseMediaSource(
+                domain=DOMAIN,
+                identifier=f"HOUR|{entry_id}|{channel}|{day_s}|{hour:02d}",
+                media_class=MediaClass.DIRECTORY,
+                media_content_type="",
+                title=f"{hour:02d}:00 – {hour:02d}:59",
+                can_play=False,
+                can_expand=True,
+                children_media_class=MediaClass.VIDEO,
             )
+            for hour in hours
+        ]
         return BrowseMediaSource(
             domain=DOMAIN,
             identifier=identifier,
             media_class=MediaClass.DIRECTORY,
             media_content_type="",
             title=day.strftime("%d/%m/%Y"),
+            can_play=False,
+            can_expand=True,
+            children_media_class=MediaClass.DIRECTORY,
+            children=children,
+        )
+
+    async def _browse_slices(self, identifier: str) -> BrowseMediaSource:
+        """Uma hora: trechos de MEDIA_SLICE_MINUTES min cobertos por gravação."""
+        _, entry_id, channel, day_s, hour_s = identifier.split("|")
+        day, recordings = await self._day_recordings(entry_id, channel, day_s)
+        hour = int(hour_s)
+        hour_start = datetime.combine(day, time(hour=hour))
+        hour_end = hour_start + timedelta(hours=1)
+        step = timedelta(minutes=MEDIA_SLICE_MINUTES)
+        children = []
+        slot = hour_start
+        while slot < hour_end:
+            slot_end = slot + step
+            if any(rec.start < slot_end and rec.end > slot for rec in recordings):
+                children.append(
+                    BrowseMediaSource(
+                        domain=DOMAIN,
+                        identifier=(
+                            f"PLAY|{entry_id}|{channel}"
+                            f"|{slot.strftime(_COMPACT_FMT)}"
+                            f"|{slot_end.strftime(_COMPACT_FMT)}"
+                        ),
+                        media_class=MediaClass.VIDEO,
+                        media_content_type=MediaType.VIDEO,
+                        title=f"{slot.strftime('%H:%M')} – {slot_end.strftime('%H:%M')}",
+                        can_play=True,
+                        can_expand=False,
+                    )
+                )
+            slot = slot_end
+        return BrowseMediaSource(
+            domain=DOMAIN,
+            identifier=identifier,
+            media_class=MediaClass.DIRECTORY,
+            media_content_type="",
+            title=f"{day.strftime('%d/%m/%Y')} {hour:02d}h",
             can_play=False,
             can_expand=True,
             children_media_class=MediaClass.VIDEO,
