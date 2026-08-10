@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST
+from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
@@ -18,6 +18,7 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
 )
+from .apply_helper import async_sync_generic_cameras
 from .dvr import IntelbrasClient, discover_mac, find_ip_by_mac
 
 _LOGGER = logging.getLogger(__name__)
@@ -102,6 +103,21 @@ class IntelbrasCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     self.hass.config_entries.async_reload(self.entry.entry_id)
                 )
                 data[CONF_HOST] = new_ip
+                host = new_ip
+
+        # Sweep: câmeras generic do DVR sempre apontando para o host atual
+        # (cobre o caso do IP ter sido corrigido em outro lugar ou o DHCP
+        # ter trocado de volta entre dois ticks).
+        synced = await async_sync_generic_cameras(
+            self.hass,
+            host,
+            self.entry.data.get(CONF_USERNAME),
+            self.entry.data.get(CONF_PASSWORD),
+        )
+        if synced:
+            self.set_last_result(
+                f"AUTO-SYNC: {synced} câmeras generic apontadas para {host}"
+            )
 
         data[DATA_LAST_RESULT] = self._last_result
         data[DATA_MAC] = self._mac

@@ -72,9 +72,9 @@ def _normalize_url(url: str, host: str) -> str:
 
 
 def _patch_generic_cameras(
-    hass: HomeAssistant, host: str, username: str, password: str
-) -> int:
-    updated = 0
+    hass: HomeAssistant, host: str, username: str | None, password: str | None
+) -> list[str]:
+    updated: list[str] = []
     for entry in hass.config_entries.async_entries("generic"):
         options = dict(entry.options)
         blob = " ".join(str(v) for v in options.values())
@@ -92,10 +92,10 @@ def _patch_generic_cameras(
                 new_options[key] = normalized
                 changed = True
 
-        if options.get(CONF_USERNAME) != username:
+        if username and options.get(CONF_USERNAME) != username:
             new_options[CONF_USERNAME] = username
             changed = True
-        if options.get(CONF_PASSWORD) != password:
+        if password and options.get(CONF_PASSWORD) != password:
             new_options[CONF_PASSWORD] = password
             changed = True
 
@@ -105,8 +105,25 @@ def _patch_generic_cameras(
         hass.config_entries.async_update_entry(entry, options=new_options)
         if entry.disabled_by:
             hass.config_entries.async_update_entry(entry, disabled_by=None)
-        updated += 1
+        updated.append(entry.entry_id)
     return updated
+
+
+async def async_sync_generic_cameras(
+    hass: HomeAssistant,
+    host: str,
+    username: str | None = None,
+    password: str | None = None,
+) -> int:
+    """Aponta as câmeras generic do DVR para o host atual e recarrega as alteradas.
+
+    Substitui o antigo restart do HA: reload das entries é suficiente e
+    não derruba o resto da casa.
+    """
+    updated = _patch_generic_cameras(hass, host, username, password)
+    for entry_id in updated:
+        hass.async_create_task(hass.config_entries.async_reload(entry_id))
+    return len(updated)
 
 
 async def apply_credentials(
@@ -128,7 +145,7 @@ async def apply_credentials(
     if mac:
         await hass.async_add_executor_job(_write_mac_override, mac)
 
-    generic_updated = _patch_generic_cameras(hass, host, username, password)
+    generic_updated = await async_sync_generic_cameras(hass, host, username, password)
     integration_updated = False
 
     if entry is not None:
@@ -179,5 +196,5 @@ async def apply_credentials(
         mac=mac,
         generic_updated=generic_updated,
         integration_updated=integration_updated,
-        needs_restart=generic_updated > 0,
+        needs_restart=False,
     )
