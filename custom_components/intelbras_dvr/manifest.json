@@ -1,6 +1,4 @@
 {
-  "domain": "intelbras_dvr",
-  "name": "Intelbras DVR",
   "codeowners": [
     "@Constantini21"
   ],
@@ -10,11 +8,13 @@
     "stream"
   ],
   "documentation": "https://github.com/Constantini21/intelbras_dvr",
+  "domain": "intelbras_dvr",
   "integration_type": "device",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/Constantini21/intelbras_dvr/issues",
+  "name": "Intelbras DVR",
   "requirements": [
     "httpx>=0.24"
   ],
-  "version": "0.2.1"
+  "version": "0.3.0"
 }

@@ -75,7 +75,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         persistent_notification.async_create(
             hass,
             outcome.message
-            + (" — reiniciando HA..." if outcome.needs_restart else ""),
+            + (" — câmeras recarregadas" if outcome.generic_updated else ""),
             title="DVR Intelbras",
             notification_id="intelbras_dvr_apply",
         )
@@ -83,8 +83,6 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         if entry is not None:
             await hass.config_entries.async_reload(entry.entry_id)
 
-        if outcome.needs_restart:
-            await hass.services.async_call("homeassistant", "restart")
 
     hass.services.async_register(DOMAIN, SERVICE_APPLY, _apply, schema=APPLY_SCHEMA)
     return True
