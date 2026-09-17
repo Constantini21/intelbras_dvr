@@ -4,10 +4,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-import subprocess
+import socket
+import time
 import urllib.parse
 from dataclasses import dataclass, field
 from datetime import datetime
+from collections.abc import Iterable
 from typing import Optional
 
 import httpx
@@ -23,7 +25,8 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-_MAC_RE = re.compile(r"([0-9a-f]{2}:){5}[0-9a-f]{2}", re.IGNORECASE)
+# porta discard: o datagrama é descartado, mas o kernel resolve o ARP
+_ARP_PRIME_PORT = 9
 
 # linhas "items[N].Campo=valor" (ou "items[N].Campo[i]=valor") do findNextFile
 _ITEM_RE = re.compile(r"^items\[(\d+)\]\.([A-Za-z]+)(?:\[\d+\])?=(.*)$")
@@ -263,81 +266,69 @@ class IntelbrasClient:
         return f"rtsp://{user}:{pwd}@{self.host}:{rtsp_port}{path}"
 
 
+def _arp_table() -> dict[str, str]:
+    """Mapa IP -> MAC da tabela ARP local, sem subprocesso."""
+    table: dict[str, str] = {}
+    try:
+        with open("/proc/net/arp", encoding="utf-8") as fh:
+            for line in fh.readlines()[1:]:
+                parts = line.split()
+                # IP HWtype Flags HWaddress Mask Device; flags 0x0 = incompleto
+                if len(parts) >= 4 and parts[2] != "0x0":
+                    mac = parts[3].lower()
+                    if mac != "00:00:00:00:00:00":
+                        table[parts[0]] = mac
+    except OSError as err:
+        _LOGGER.debug("Não foi possível ler /proc/net/arp: %s", err)
+    return table
+
+
+def _arp_prime(targets: Iterable[str], pause: float) -> None:
+    """Força a resolução ARP mandando um datagrama UDP para cada alvo.
+
+    Um único socket para a varredura inteira. A versão anterior disparava um
+    processo `ping` por host (254 por varredura): quando algum deles não
+    terminava no timeout, os filhos ficavam sem reaproveitamento e os
+    descritores vazavam até o Home Assistant morrer com EMFILE.
+    """
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    except OSError as err:
+        _LOGGER.debug("ARP prime indisponível: %s", err)
+        return
+    try:
+        sock.setblocking(False)
+        for ip in targets:
+            try:
+                sock.sendto(b"", (ip, _ARP_PRIME_PORT))
+            except OSError:
+                continue
+        time.sleep(pause)
+    finally:
+        sock.close()
+
+
 def discover_mac(ip: str) -> Optional[str]:
     """Procura o MAC na tabela ARP local. Requer mesma L2/host network."""
-    try:
-        subprocess.run(
-            ["ping", "-c1", "-W1", ip],
-            check=False,
-            timeout=3,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        out = subprocess.run(
-            ["ip", "neigh", "show", ip],
-            check=False,
-            timeout=3,
-            capture_output=True,
-            text=True,
-        ).stdout
-        m = _MAC_RE.search(out)
-        if m:
-            return m.group(0).lower()
-        # fallback: /proc/net/arp
-        try:
-            with open("/proc/net/arp", encoding="utf-8") as fh:
-                for line in fh.readlines()[1:]:
-                    parts = line.split()
-                    if parts and parts[0] == ip:
-                        return parts[3].lower()
-        except OSError:
-            pass
-    except Exception as ex:  # noqa: BLE001
-        _LOGGER.debug("discover_mac(%s) falhou: %s", ip, ex)
-    return None
+    mac = _arp_table().get(ip)
+    if mac:
+        return mac
+    _arp_prime([ip], pause=0.5)
+    return _arp_table().get(ip)
 
 
 def find_ip_by_mac(mac: str, subnet_prefix: Optional[str] = None) -> Optional[str]:
-    """Procura o IP atual de um MAC fazendo arp sweep opcional."""
+    """Procura o IP atual de um MAC, varrendo a /24 quando necessário."""
     mac = mac.lower()
-    # tentativa 1: tabela ARP atual
-    try:
-        out = subprocess.run(
-            ["ip", "-4", "neigh", "show"],
-            check=False,
-            timeout=3,
-            capture_output=True,
-            text=True,
-        ).stdout
-        for line in out.splitlines():
-            if mac in line.lower() and " FAILED" not in line and " INCOMPLETE" not in line:
-                return line.split()[0]
-    except Exception:  # noqa: BLE001
-        pass
+    for ip, found in _arp_table().items():
+        if found == mac:
+            return ip
 
-    # tentativa 2: ARP sweep (se prefixo fornecido)
-    if subnet_prefix:
-        procs = [
-            subprocess.Popen(
-                ["ping", "-c1", "-W1", f"{subnet_prefix}.{i}"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            for i in range(1, 255)
-        ]
-        for p in procs:
-            p.wait(timeout=3)
-        try:
-            out = subprocess.run(
-                ["ip", "-4", "neigh", "show"],
-                check=False,
-                timeout=3,
-                capture_output=True,
-                text=True,
-            ).stdout
-            for line in out.splitlines():
-                if mac in line.lower() and " FAILED" not in line:
-                    return line.split()[0]
-        except Exception:  # noqa: BLE001
-            pass
+    if not subnet_prefix:
+        return None
+
+    _arp_prime((f"{subnet_prefix}.{i}" for i in range(1, 255)), pause=1.5)
+    for ip, found in _arp_table().items():
+        if found == mac:
+            return ip
     return None
