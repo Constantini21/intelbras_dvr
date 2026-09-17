@@ -16,5 +16,5 @@
   "requirements": [
     "httpx>=0.24"
   ],
-  "version": "0.3.0"
+  "version": "0.3.1"
 }
